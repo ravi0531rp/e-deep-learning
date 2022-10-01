@@ -94,6 +94,7 @@ model.predict([4])
 ```
 
 <h2><b>003. Basic Multiclass Singlelabel Image Classification with ANNs</b></h2>
+
 * Let's Analyse the Fashion MNIST Dataset
 
 ```
@@ -495,6 +496,7 @@ model.compile(optimizer = RMSprop(learning_rate=0.0001),
 ```
 
 <h2><b>006. Transfer learning : Method 2 </b></h2>
+
 * In this approach, we directly load the model & weights while initializing
 * Only possible for models in the tf.keras.applications
 
@@ -697,3 +699,4 @@ tm = TrainingModule("./datasets/fullData" , "./datasets/fullData" )
 tm.train()
 
 ```
+
