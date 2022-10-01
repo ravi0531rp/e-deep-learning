@@ -354,3 +354,82 @@ for layer_name, feature_map in zip(layer_names, successive_feature_maps):
     plt.imshow(display_grid, aspect='auto', cmap='viridis')
 
 ```
+
+<h2><b>005. Image Data Augmentation </b></h2>
+
+```
+class CustomCallback(tf.keras.callbacks.Callback):
+    def on_epoch_end(self, epoch, logs={}):
+        if logs.get('accuracy') >= 0.99:
+            print("\nStopping training as accuracy reached.. ")
+            self.model.stop_training = True
+            
+mycall = CustomCallback()
+
+train_horse_dir = os.path.join('./datasets/horse-or-human/horses')
+train_human_dir = os.path.join('./datasets/horse-or-human/humans')
+validation_horse_dir = os.path.join('./datasets/validation-horse-or-human/horses')
+validation_human_dir = os.path.join('./datasets/validation-horse-or-human/humans')
+
+train_horse_names = os.listdir(train_horse_dir)
+train_human_names = os.listdir(train_human_dir)
+validation_horse_names = os.listdir(validation_horse_dir)
+validation_human_names = os.listdir(validation_human_dir)
+
+
+print(len(train_horse_names))
+print(len(train_human_names))
+```
+
+```
+batch_size = 32
+
+train_datagen = ImageDataGenerator(rescale=1/255,
+                                  rotation_range=40,
+                                  width_shift_range=0.2,
+                                  height_shift_range=0.2,
+                                  shear_range=0.2,
+                                  zoom_range=0.2,
+                                  horizontal_flip=True,
+                                  fill_mode='nearest')
+validation_datagen = ImageDataGenerator(rescale=1/255)
+
+train_generator = train_datagen.flow_from_directory(
+        './datasets/horse-or-human/',  
+        target_size=(300, 300),  
+        batch_size=batch_size,
+        class_mode='binary')
+
+validation_generator = validation_datagen.flow_from_directory(
+        './datasets/validation-horse-or-human/',  
+        target_size=(300, 300),  
+        batch_size=batch_size,
+        class_mode='binary')
+
+```
+
+```
+i = Input(shape=(300,300,3))
+o = Conv2D(16, (3,3) , activation='relu')(i)
+o = MaxPooling2D(2,2)(o)
+o = Flatten()(o)
+o = Dense(128, activation='relu')(o)
+o = Dense(1, activation='sigmoid')(o)
+
+model = Model(inputs=i, outputs=o)
+
+print(model.summary())
+
+model.compile(loss = 'binary_crossentropy', optimizer = 'adam' , metrics = ['accuracy'])
+
+tf.keras.backend.clear_session()
+r = model.fit(
+    train_generator,
+    epochs = 8,
+    steps_per_epoch = int((len(train_horse_names) + len(train_human_names))/batch_size),
+    validation_data = validation_generator,
+    validation_steps = int((len(validation_horse_names) + len(validation_human_names))/batch_size),
+    callbacks=[mycall])
+
+```
+
