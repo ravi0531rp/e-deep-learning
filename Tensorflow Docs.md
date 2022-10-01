@@ -19,7 +19,7 @@ import io
 import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow.keras.models import Model, load_model
-import tensorflow.keras.datasets as tfds
+import tensorflow_datasets as tfds
 
 from tensorflow.keras import backend as K
 from tensorflow.keras.losses import Loss
@@ -700,3 +700,504 @@ tm.train()
 
 ```
 
+<h2><b>007. Sequence and Tokens with Tensorflow NLP</b></h2>
+
+```
+sentences = [
+    'i love my dog',
+    'I, love my cat',
+    'You love my dog!'
+]
+
+tokenizer = Tokenizer(num_words=100)
+tokenizer.fit_on_texts(sentences)
+
+word_index = tokenizer.word_index
+
+print(word_index)
+>> {'love': 1, 'my': 2, 'i': 3, 'dog': 4, 'cat': 5, 'you': 6}
+
+```
+
+```
+sentences = [
+    'I love my dog',
+    'I love my cat',
+    'You love my dog!',
+    'Do you think my dog is amazing?'
+]
+
+tokenizer = Tokenizer(num_words = 100, oov_token="<OOV>")
+tokenizer.fit_on_texts(sentences)
+word_index = tokenizer.word_index
+
+sequences = tokenizer.texts_to_sequences(sentences)
+
+padded = pad_sequences(sequences, maxlen=5)
+print("\nWord Index = " , word_index)
+print("\nSequences = " , sequences)
+print("\nPadded Sequences:")
+print(padded)
+
+
+# Try with words that the tokenizer wasn't fit to
+test_data = [
+    'i really love my dog',
+    'my dog loves my manatee'
+]
+
+test_seq = tokenizer.texts_to_sequences(test_data)
+print("\nTest Sequence = ", test_seq)
+
+padded = pad_sequences(test_seq, maxlen=10)
+print("\nPadded Test Sequence: ")
+print(padded)
+
+>>
+Word Index =  {'<OOV>': 1, 'my': 2, 'love': 3, 'dog': 4, 'i': 5, 'you': 6, 'cat': 7, 'do': 8, 'think': 9, 'is': 10, 'amazing': 11}
+
+Sequences =  [[5, 3, 2, 4], [5, 3, 2, 7], [6, 3, 2, 4], [8, 6, 9, 2, 4, 10, 11]]
+
+Padded Sequences:
+[[ 0  5  3  2  4]
+ [ 0  5  3  2  7]
+ [ 0  6  3  2  4]
+ [ 9  2  4 10 11]]
+
+Test Sequence =  [[5, 1, 3, 2, 4], [2, 4, 1, 2, 1]]
+
+Padded Test Sequence: 
+[[0 0 0 0 0 5 1 3 2 4]
+ [0 0 0 0 0 2 4 1 2 1]]
+
+```
+
+* Test our knowledge on Tokenization
+```
+with open("./datasets/sarcasm.json", 'r') as f:
+    datastore = json.load(f)
+
+
+sentences = [] 
+labels = []
+urls = []
+for item in datastore:
+    sentences.append(item['headline'])
+    labels.append(item['is_sarcastic'])
+    urls.append(item['article_link'])
+
+
+tokenizer = Tokenizer(oov_token="<OOV>")
+tokenizer.fit_on_texts(sentences)
+
+word_index = tokenizer.word_index
+print(len(word_index))
+print(word_index)
+
+sequences = tokenizer.texts_to_sequences(sentences)
+padded = pad_sequences(sequences, padding='post')
+print(padded[0])
+print(padded.shape)
+
+```
+
+<h2><b>008. IMDB Sentiment Analysis with TF</b></h2>
+
+```
+imdb, info = tfds.load("imdb_reviews", with_info=True, as_supervised=True)
+
+train_data, test_data = imdb['train'], imdb['test']
+
+training_sentences = []
+training_labels = []
+
+testing_sentences = []
+testing_labels = []
+
+for s,l in train_data:
+    training_sentences.append(s.numpy().decode('utf8'))
+    training_labels.append(l.numpy())
+    
+for s,l in test_data:
+    testing_sentences.append(s.numpy().decode('utf8'))
+    testing_labels.append(l.numpy())
+    
+training_labels_final = np.array(training_labels)
+testing_labels_final = np.array(testing_labels)
+```
+
+```
+vocab_size = 10000
+embedding_dim = 16
+max_length = 120
+trunc_type='post'
+oov_tok = "<OOV>"
+```
+
+```
+tokenizer = Tokenizer(num_words = vocab_size, oov_token=oov_tok)
+tokenizer.fit_on_texts(training_sentences)
+word_index = tokenizer.word_index
+sequences = tokenizer.texts_to_sequences(training_sentences)
+padded = pad_sequences(sequences,maxlen=max_length, truncating=trunc_type)
+
+testing_sequences = tokenizer.texts_to_sequences(testing_sentences)
+testing_padded = pad_sequences(testing_sequences,maxlen=max_length)
+```
+
+```
+reverse_word_index = dict([(value, key) for (key, value) in word_index.items()])
+
+def decode_review(text):
+    return ' '.join([reverse_word_index.get(i, '?') for i in text])
+
+print(decode_review(padded[3]))
+print(training_sentences[3])
+```
+
+```
+model = tf.keras.Sequential([
+    tf.keras.layers.Embedding(vocab_size, embedding_dim, input_length=max_length),
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(6, activation='relu'),
+    tf.keras.layers.Dense(1, activation='sigmoid')
+])
+model.compile(loss='binary_crossentropy',optimizer='adam',metrics=['accuracy'])
+model.summary()
+
+num_epochs = 10
+model.fit(padded, training_labels_final, epochs=num_epochs, validation_data=(testing_padded, testing_labels_final))
+```
+
+```
+e = model.layers[0]
+weights = e.get_weights()[0]
+print(weights.shape) # shape: (vocab_size, embedding_dim)
+
+out_v = io.open('vecs.tsv', 'w', encoding='utf-8')
+out_m = io.open('meta.tsv', 'w', encoding='utf-8')
+for word_num in range(1, vocab_size):
+    word = reverse_word_index[word_num]
+    embeddings = weights[word_num]
+    out_m.write(word + "\n")
+    out_v.write('\t'.join([str(x) for x in embeddings]) + "\n")
+out_v.close()
+out_m.close()
+```
+
+<h2><b>009. Sarcasm Detection with ANNs and Embedding Layers</b></h2>
+
+```
+vocab_size = 10000
+embedding_dim = 16
+max_length = 100
+trunc_type='post'
+padding_type='post'
+oov_tok = "<OOV>"
+training_size = 20000
+
+with open("./datasets/sarcasm.json", 'r') as f:
+    datastore = json.load(f)
+
+sentences = []
+labels = []
+
+for item in datastore:
+    sentences.append(item['headline'])
+    labels.append(item['is_sarcastic'])
+    
+```
+
+```
+training_sentences = sentences[0:training_size]
+testing_sentences = sentences[training_size:]
+training_labels = labels[0:training_size]
+testing_labels = labels[training_size:]
+
+tokenizer = Tokenizer(num_words=vocab_size, oov_token=oov_tok)
+tokenizer.fit_on_texts(training_sentences)
+
+word_index = tokenizer.word_index
+
+training_sequences = tokenizer.texts_to_sequences(training_sentences)
+training_padded = pad_sequences(training_sequences, maxlen=max_length, padding=padding_type, truncating=trunc_type)
+
+testing_sequences = tokenizer.texts_to_sequences(testing_sentences)
+testing_padded = pad_sequences(testing_sequences, maxlen=max_length, padding=padding_type, truncating=trunc_type)
+
+training_padded = np.array(training_padded)
+training_labels = np.array(training_labels)
+testing_padded = np.array(testing_padded)
+testing_labels = np.array(testing_labels)
+```
+
+```
+model = tf.keras.Sequential([
+    tf.keras.layers.Embedding(vocab_size, embedding_dim, input_length=max_length),
+    tf.keras.layers.GlobalAveragePooling1D(),
+    tf.keras.layers.Dense(24, activation='relu'),
+    tf.keras.layers.Dense(1, activation='sigmoid')
+])
+model.compile(loss='binary_crossentropy',optimizer='adam',metrics=['accuracy'])
+
+print(model.summary())
+
+num_epochs = 30
+history = model.fit(training_padded, training_labels, epochs=num_epochs, validation_data=(testing_padded, testing_labels), verbose=2)
+
+>>
+Model: "sequential"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ embedding (Embedding)       (None, 100, 16)           160000    
+                                                                 
+ global_average_pooling1d (G  (None, 16)               0         
+ lobalAveragePooling1D)                                          
+                                                                 
+ dense (Dense)               (None, 24)                408       
+                                                                 
+ dense_1 (Dense)             (None, 1)                 25        
+                                                                 
+=================================================================
+Total params: 160,433
+Trainable params: 160,433
+Non-trainable params: 0
+_________________________________________________________________
+```
+
+```
+def plot_graphs(history, string):
+  plt.plot(history.history[string])
+  plt.plot(history.history['val_'+string])
+  plt.xlabel("Epochs")
+  plt.ylabel(string)
+  plt.legend([string, 'val_'+string])
+  plt.show()
+  
+plot_graphs(history, "accuracy")
+plot_graphs(history, "loss")
+```
+
+```
+reverse_word_index = dict([(value, key) for (key, value) in word_index.items()])
+
+def decode_sentence(text):
+    return ' '.join([reverse_word_index.get(i, '?') for i in text])
+
+print(decode_sentence(training_padded[0]))
+print(training_sentences[2])
+print(labels[2])
+```
+
+```
+e = model.layers[0]
+weights = e.get_weights()[0]
+print(weights.shape) # shape: (vocab_size, embedding_dim)
+
+out_v = io.open('vecs.tsv', 'w', encoding='utf-8')
+out_m = io.open('meta.tsv', 'w', encoding='utf-8')
+for word_num in range(1, vocab_size):
+  word = reverse_word_index[word_num]
+  embeddings = weights[word_num]
+  out_m.write(word + "\n")
+  out_v.write('\t'.join([str(x) for x in embeddings]) + "\n")
+out_v.close()
+out_m.close()
+
+```
+
+<h2><b>010. LSTM & GRUs For Sequence Modelling in Texts</b></h2>
+
+```
+dataset, info = tfds.load('imdb_reviews/subwords8k', with_info=True, as_supervised=True)
+train_dataset, test_dataset = dataset['train'], dataset['test']
+
+tokenizer = info.features['text'].encoder
+
+BUFFER_SIZE = 10000
+BATCH_SIZE = 64
+
+train_dataset = train_dataset.shuffle(BUFFER_SIZE)
+train_dataset = train_dataset.padded_batch(BATCH_SIZE, tf.compat.v1.data.get_output_shapes(train_dataset))
+test_dataset = test_dataset.padded_batch(BATCH_SIZE, tf.compat.v1.data.get_output_shapes(test_dataset))
+```
+
+```
+model = tf.keras.Sequential([
+    tf.keras.layers.Embedding(tokenizer.vocab_size, 64),
+    tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True)),
+    tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(32)),
+    tf.keras.layers.Dense(64, activation='relu'),
+    tf.keras.layers.Dense(1, activation='sigmoid')
+])
+
+print(model.summary())
+
+model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+NUM_EPOCHS = 10
+history = model.fit(train_dataset, epochs=NUM_EPOCHS, validation_data=test_dataset)
+
+```
+* More Approaches
+```
+imdb, info = tfds.load("imdb_reviews", with_info=True, as_supervised=True)
+
+train_data, test_data = imdb['train'], imdb['test']
+
+training_sentences = []
+training_labels = []
+
+testing_sentences = []
+testing_labels = []
+
+for s,l in train_data:
+    training_sentences.append(str(s.numpy()))
+    training_labels.append(l.numpy())
+
+for s,l in test_data:
+    testing_sentences.append(str(s.numpy()))
+    testing_labels.append(l.numpy())
+
+training_labels_final = np.array(training_labels)
+testing_labels_final = np.array(testing_labels)
+
+vocab_size = 10000
+embedding_dim = 16
+max_length = 120
+trunc_type='post'
+oov_tok = "<OOV>"
+
+
+tokenizer = Tokenizer(num_words = vocab_size, oov_token=oov_tok)
+tokenizer.fit_on_texts(training_sentences)
+word_index = tokenizer.word_index
+sequences = tokenizer.texts_to_sequences(training_sentences)
+padded = pad_sequences(sequences,maxlen=max_length, truncating=trunc_type)
+
+testing_sequences = tokenizer.texts_to_sequences(testing_sentences)
+testing_padded = pad_sequences(testing_sequences,maxlen=max_length)
+
+reverse_word_index = dict([(value, key) for (key, value) in word_index.items()])
+
+def decode_review(text):
+    return ' '.join([reverse_word_index.get(i, '?') for i in text])
+
+print(decode_review(padded[1]))
+print(training_sentences[1])
+```
+
+```
+model = tf.keras.Sequential([
+    tf.keras.layers.Embedding(vocab_size, embedding_dim, input_length=max_length),
+    tf.keras.layers.Bidirectional(tf.keras.layers.GRU(32)),
+    tf.keras.layers.Dense(6, activation='relu'),
+    tf.keras.layers.Dense(1, activation='sigmoid')
+])
+model.compile(loss='binary_crossentropy',optimizer='adam',metrics=['accuracy'])
+model.summary()
+
+num_epochs = 50
+history = model.fit(padded, training_labels_final, epochs=num_epochs, validation_data=(testing_padded, testing_labels_final))
+```
+
+
+```
+# Model Definition with LSTM
+model = tf.keras.Sequential([
+    tf.keras.layers.Embedding(vocab_size, embedding_dim, input_length=max_length),
+    tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(32)),
+    tf.keras.layers.Dense(6, activation='relu'),
+    tf.keras.layers.Dense(1, activation='sigmoid')
+])
+model.compile(loss='binary_crossentropy',optimizer='adam',metrics=['accuracy'])
+model.summary()
+```
+
+```
+# Model Definition with Conv1D
+model = tf.keras.Sequential([
+    tf.keras.layers.Embedding(vocab_size, embedding_dim, input_length=max_length),
+    tf.keras.layers.Conv1D(128, 5, activation='relu'),
+    tf.keras.layers.GlobalAveragePooling1D(),
+    tf.keras.layers.Dense(6, activation='relu'),
+    tf.keras.layers.Dense(1, activation='sigmoid')
+])
+model.compile(loss='binary_crossentropy',optimizer='adam',metrics=['accuracy'])
+model.summary()
+
+```
+
+<h2><b>011. Text Generation with LSTMs</b></h2>
+
+* We can use different ways.
+* This one is a pretty simple one.
+* Using a fixed vocabulary, get our LSTM t predict the next words given the previous phrase
+
+```
+tokenizer = Tokenizer()
+```
+
+```
+data="In the town of Athy one Jeremy Lanigan \n Battered away til he hadnt a pound. \nHis father died and made him a man again \n Left him a farm and ten acres of ground. \nHe gave a grand party for friends and relations \nWho didnt forget him when come to the wall, \nAnd if youll but listen Ill make your eyes glisten \nOf the rows and the ructions of Lanigans Ball. \nMyself to be sure got free invitation, \nFor all the nice girls and boys I might ask, \nAnd just in a minute both friends and relations \nWere dancing round merry as bees round a cask. \nJudy ODaly, that nice little milliner, \nShe tipped me a wink for to give her a call, \nAnd I soon arrived with Peggy McGilligan \nJust in time for Lanigans Ball. \nThere were lashings of punch and wine for the ladies, \nPotatoes and cakes; there was bacon and tea, \nThere were the Nolans, Dolans, OGradys \nCourting the girls and dancing away. \nSongs they went round as plenty as water, \nThe harp that once sounded in Taras old hall,\nSweet Nelly Gray and The Rat Catchers Daughter,\nAll singing together at Lanigans Ball. \nThey were doing all kinds of nonsensical polkas \nAll round the room in a whirligig. \nJulia and I, we banished their nonsense \nAnd tipped them the twist of a reel and a jig. \nAch mavrone, how the girls got all mad at me \nDanced til youd think the ceiling would fall. \nFor I spent three weeks at Brooks Academy \nLearning new steps for Lanigans Ball. \nThree long weeks I spent up in Dublin, \nThree long weeks to learn nothing at all,\n Three long weeks I spent up in Dublin, \nLearning new steps for Lanigans Ball. \nShe stepped out and I stepped in again, \nI stepped out and she stepped in again, \nShe stepped out and I stepped in again, \nLearning new steps for Lanigans Ball. \nBoys were all merry and the girls they were hearty \nAnd danced all around in couples and groups, \nTil an accident happened, young Terrance McCarthy \nPut his right leg through miss Finnertys hoops. \nPoor creature fainted and cried Meelia murther, \nCalled for her brothers and gathered them all. \nCarmody swore that hed go no further \nTil he had satisfaction at Lanigans Ball. \nIn the midst of the row miss Kerrigan fainted, \nHer cheeks at the same time as red as a rose. \nSome of the lads declared she was painted, \nShe took a small drop too much, I suppose. \nHer sweetheart, Ned Morgan, so powerful and able, \nWhen he saw his fair colleen stretched out by the wall, \nTore the left leg from under the table \nAnd smashed all the Chaneys at Lanigans Ball. \nBoys, oh boys, twas then there were runctions. \nMyself got a lick from big Phelim McHugh. \nI soon replied to his introduction \nAnd kicked up a terrible hullabaloo. \nOld Casey, the piper, was near being strangled. \nThey squeezed up his pipes, bellows, chanters and all. \nThe girls, in their ribbons, they got all entangled \nAnd that put an end to Lanigans Ball."
+
+```
+
+```
+corpus = data.lower().split("\n")
+
+tokenizer.fit_on_texts(corpus)
+total_words = len(tokenizer.word_index) + 1
+
+print(tokenizer.word_index)
+print(total_words)
+```
+
+```
+input_sequences = []
+for line in corpus:
+    token_list = tokenizer.texts_to_sequences([line])[0]
+    for i in range(1, len(token_list)):
+        n_gram_sequence = token_list[:i+1]
+        input_sequences.append(n_gram_sequence)
+
+# pad sequences 
+max_sequence_len = max([len(x) for x in input_sequences])
+input_sequences = np.array(pad_sequences(input_sequences, maxlen=max_sequence_len, padding='pre'))
+
+# create predictors and label
+xs, labels = input_sequences[:,:-1],input_sequences[:,-1]
+
+ys = tf.keras.utils.to_categorical(labels, num_classes=total_words)
+```
+
+```
+model = tf.keras.models.Sequential()
+model.add(Embedding(total_words, 64, input_length=max_sequence_len-1))
+model.add(Bidirectional(LSTM(20)))
+model.add(Dense(total_words, activation='softmax'))
+model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+history = model.fit(xs, ys, epochs=500, verbose=1)
+```
+
+* Generating Sentences
+
+```
+seed_text = "Ravi went to London"
+next_words = 100
+  
+for _ in range(next_words):
+    token_list = tokenizer.texts_to_sequences([seed_text])[0]
+    token_list = pad_sequences([token_list], maxlen=max_sequence_len-1, padding='pre')
+    predicted = model.predict(token_list, verbose=0)
+    predicted = np.argmax(predicted, axis = 1)
+    output_word = ""
+    for word, index in tokenizer.word_index.items():
+        if index == predicted:
+            output_word = word
+            break
+    seed_text += " " + output_word
+print(seed_text)
+
+```
