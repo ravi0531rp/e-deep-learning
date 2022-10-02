@@ -1201,3 +1201,156 @@ for _ in range(next_words):
 print(seed_text)
 
 ```
+
+<h2><b>012. Multi Output Models with Tensorflow</b></h2>
+
+* We may have models with multiple types of Outputs.
+* Let's say we have a problem statement where we have to predict age group and gender based on image.
+* We can have two set of the final layers with m & n neurons based on the classes.
+* Then, the model can train on the data and always predict two sort of outputs.
+
+```
+def format_output(data):
+    y1 = data.pop('Y1')
+    y1 = np.array(y1)
+    y2 = data.pop('Y2')
+    y2 = np.array(y2)
+    return y1, y2
+
+
+def norm(x):
+    return (x - train_stats['mean']) / train_stats['std']
+
+
+def plot_diff(y_true, y_pred, title=''):
+    plt.scatter(y_true, y_pred)
+    plt.title(title)
+    plt.xlabel('True Values')
+    plt.ylabel('Predictions')
+    plt.axis('equal')
+    plt.axis('square')
+    plt.xlim(plt.xlim())
+    plt.ylim(plt.ylim())
+    plt.plot([-100, 100], [-100, 100])
+    plt.show()
+
+
+def plot_metrics(metric_name, title, ylim=5):
+    plt.title(title)
+    plt.ylim(0, ylim)
+    plt.plot(history.history[metric_name], color='blue', label=metric_name)
+    plt.plot(history.history['val_' + metric_name], color='green', label='val_' + metric_name)
+    plt.show()
+    
+# Specify data URI
+URI = './datasets/ENB2012_data.csv'
+
+# Use pandas excel reader
+df = pd.read_csv(URI).sample(frac=1).reset_index(drop=True)
+
+# Split the data into train and test with 80 train / 20 test
+train, test = train_test_split(df, test_size=0.2)
+train_stats = train.describe()
+
+# Get Y1 and Y2 as the 2 outputs and format them as np arrays
+train_stats.pop('Y1')
+train_stats.pop('Y2')
+train_stats = train_stats.transpose()
+train_Y = format_output(train)
+test_Y = format_output(test)
+
+# Normalize the training and test data
+norm_train_X = norm(train)
+norm_test_X = norm(test)
+
+```
+
+```
+# Define model layers.
+input_layer = Input(shape=(len(train .columns)))
+first_dense = Dense(units='128', activation='relu', name='d1')(input_layer)
+second_dense = Dense(units='128', activation='relu', name='d2')(first_dense)
+
+# Y1 output will be fed directly from the second dense
+y1_output = Dense(units='1', name='y1_output')(second_dense)
+third_dense = Dense(units='64', activation='relu', name='d3')(second_dense)
+
+# Y2 output will come via the third dense
+y2_output = Dense(units='1', name='y2_output')(third_dense)
+
+# Define the model with the input layer and a list of output layers
+model = Model(inputs=input_layer, outputs=[y1_output, y2_output])
+
+print(model.summary())
+
+>> Model: "model"
+__________________________________________________________________________________________________
+ Layer (type)                   Output Shape         Param #     Connected to                     
+==================================================================================================
+ input_1 (InputLayer)           [(None, 8)]          0           []                               
+                                                                                                  
+ d1 (Dense)                     (None, 128)          1152        ['input_1[0][0]']                
+                                                                                                  
+ d2 (Dense)                     (None, 128)          16512       ['d1[0][0]']                     
+                                                                                                  
+ d3 (Dense)                     (None, 64)           8256        ['d2[0][0]']                     
+                                                                                                  
+ y1_output (Dense)              (None, 1)            129         ['d2[0][0]']                     
+                                                                                                  
+ y2_output (Dense)              (None, 1)            65          ['d3[0][0]']                     
+                                                                                                  
+==================================================================================================
+Total params: 26,114
+Trainable params: 26,114
+Non-trainable params: 0
+__________________________________________________________________________________________________
+None
+```
+
+* Plot the Model to understand the architecture
+```
+tf.keras.utils.plot_model(model,  show_shapes=True)
+```
+
+* Compile the Model
+```
+optimizer = tf.keras.optimizers.SGD(learning_rate=0.001)
+model.compile(optimizer=optimizer,
+              loss={'y1_output': 'mse', 'y2_output': 'mse'},
+              metrics={'y1_output': tf.keras.metrics.RootMeanSquaredError(),
+                       'y2_output': tf.keras.metrics.RootMeanSquaredError()})
+```
+
+* Train the Model
+```
+# Train the model for 500 epochs
+history = model.fit(norm_train_X, train_Y,
+                    epochs=500, batch_size=10, validation_data=(norm_test_X, test_Y))
+```
+
+* Generate Predictions
+```
+print(norm_test_X.iloc[0,:].values)
+model.predict(np.array([norm_test_X.iloc[0,:].values]))
+
+>>[-1.36728942  1.56197542  1.19674707  0.96504755 -0.99269705  0.46387804
+ -0.99544307 -1.14719733]
+[array([[12.693203]], dtype=float32), array([[14.10975]], dtype=float32)]
+```
+
+* Visualize the Results
+```
+# Test the model and print loss and mse for both outputs
+loss, Y1_loss, Y2_loss, Y1_rmse, Y2_rmse = model.evaluate(x=norm_test_X, y=test_Y)
+print("Loss = {}, Y1_loss = {}, Y1_mse = {}, Y2_loss = {}, Y2_mse = {}".format(loss, Y1_loss, Y1_rmse, Y2_loss, Y2_rmse))
+
+# Plot the loss and mse
+Y_pred = model.predict(norm_test_X)
+plot_diff(test_Y[0], Y_pred[0], title='Y1')
+plot_diff(test_Y[1], Y_pred[1], title='Y2')
+plot_metrics(metric_name='y1_output_root_mean_squared_error', title='Y1 RMSE', ylim=6)
+plot_metrics(metric_name='y2_output_root_mean_squared_error', title='Y2 RMSE', ylim=7)
+
+>> 5/5 [==============================] - 0s 2ms/step - loss: 1.1335 - y1_output_loss: 0.2785 - y2_output_loss: 0.8550 - y1_output_root_mean_squared_error: 0.5278 - y2_output_root_mean_squared_error: 0.9246
+Loss = 1.133489727973938, Y1_loss = 0.2785329222679138, Y1_mse = 0.5277621746063232, Y2_loss = 0.854956865310669, Y2_mse = 0.9246387481689453
+```
