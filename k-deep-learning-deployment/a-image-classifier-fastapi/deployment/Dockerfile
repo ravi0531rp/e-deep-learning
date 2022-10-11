@@ -1,0 +1,27 @@
+FROM nvidia/cuda:11.4.3-runtime-ubuntu20.04
+
+WORKDIR /deploy
+COPY ./requirements.txt /deploy/requirements.txt
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+
+RUN apt update && \
+    apt install -y locales locales-all gunicorn && \
+    python3 -m pip install --upgrade pip && \
+    python3 -m pip install --no-cache-dir --upgrade -r requirements.txt
+
+COPY ./ /deploy
+
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en
+ENV LC_ALL en_US.UTF-8
+ENV NUM_WORKERS 4
+
+EXPOSE 80
+EXPOSE 5001
+EXPOSE 8082
+
+RUN python3 -m pip install gunicorn==20.1.0
+
+CMD gunicorn -k uvicorn.workers.UvicornWorker -w $NUM_WORKERS -b 0.0.0.0:5001 --timeout 0 app:app
