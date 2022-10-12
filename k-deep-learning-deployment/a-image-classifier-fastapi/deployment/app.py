@@ -13,8 +13,6 @@ import tensorflow as tf
 import gdown
 from shutil import move
 
-gdown.download("https://drive.google.com/file/d/1zIfDnuFygnWvo1zPOoTKYStNZQaFjExy/view?usp=sharing")
-move("horses-humans.h5", "./saved_models/horses-humans.h5")
 app = FastAPI(title="HorsesVsHumans")
 MODEL_TYPE = os.getenv("MODEL_TYPE")
 models = dict()
@@ -32,7 +30,13 @@ def read_imagefile(file) -> Image.Image:
 async def startup_event():
     logger.info(MODEL_TYPE)
     if MODEL_TYPE == ModelName.horses_vs_humans.value:
-        models["predictor"] = tf.keras.models.load_model("./saved_models/horses-humans.h5")
+        if os.path.isfile("./horses-humans.h5"):
+            logger.info("Model already Exists...")
+        else:
+            logger.info("Downloading Model")
+            gdown.download("https://drive.google.com/file/d/1zIfDnuFygnWvo1zPOoTKYStNZQaFjExy/view?usp=sharing", fuzzy=True)
+
+        models["predictor"] = tf.keras.models.load_model("./horses-humans.h5")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
