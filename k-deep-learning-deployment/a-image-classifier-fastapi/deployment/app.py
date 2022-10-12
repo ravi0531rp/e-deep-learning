@@ -28,7 +28,7 @@ def read_imagefile(file) -> Image.Image:
 async def startup_event():
     logger.info(MODEL_TYPE)
     if MODEL_TYPE == ModelName.horses_vs_humans.value:
-        models["predictor"] = tf.keras.models.load_model("./deploy/saved_models/horses-humans.h5")
+        models["predictor"] = tf.keras.models.load_model("/deploy/saved_models/horses-humans.h5")
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
