@@ -7,6 +7,9 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 
 RUN apt update && \
+    apt install --no-install-recommends -y build-essential software-properties-common && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt install --no-install-recommends -y python3.8 python3-pip python3-setuptools python3-distutils && \
     apt install -y locales locales-all gunicorn && \
     python3 -m pip install --upgrade pip && \
     python3 -m pip install --no-cache-dir --upgrade -r requirements.txt
