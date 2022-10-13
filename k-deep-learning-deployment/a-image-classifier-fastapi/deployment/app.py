@@ -47,7 +47,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 @app.post("/predict")
-async def predict_cas(file: UploadFile = File(...)):
+async def predict(file: UploadFile = File(...)):
     results = dict()
     extension = file.filename.split(".")[-1] in ("jpg", "jpeg", "png")
     if not extension:
