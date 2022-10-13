@@ -10,7 +10,7 @@ gdown.download("https://drive.google.com/file/d/1zIfDnuFygnWvo1zPOoTKYStNZQaFjEx
 ## Commands
 
 ```
-docker build -t app/fastapi
+docker build -t app/fastapi .
 ```
 
 ```
