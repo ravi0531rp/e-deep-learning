@@ -22,7 +22,7 @@ class ModelName(str, Enum):
     horses_vs_humans = "horses_vs_humans"
     
 def read_imagefile(file) -> Image.Image:
-    image = np.array(Image.open(io.BytesIO(file)))
+    image = np.array(Image.open(io.BytesIO(file.read())))
     return image
 
 
@@ -55,7 +55,7 @@ async def predict(file: UploadFile = File(...)):
 
     else:
         try:
-            image = read_imagefile(await file.read())
+            image = read_imagefile(await file)
             results["output"] = models["predictor"].predict(image)
             
             logger.debug(results)
