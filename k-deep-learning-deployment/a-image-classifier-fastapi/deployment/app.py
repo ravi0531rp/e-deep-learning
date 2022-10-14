@@ -12,17 +12,18 @@ import ast
 import tensorflow as tf
 import gdown
 from shutil import move
+from pipeline import infer_dict
 
 app = FastAPI(title="HorsesVsHumans")
 MODEL_TYPE = os.getenv("MODEL_TYPE")
 models = dict()
 
-
 class ModelName(str, Enum):
     horses_vs_humans = "horses_vs_humans"
     
 def read_imagefile(file) -> Image.Image:
-    image = np.array(Image.open(io.BytesIO(file.read())))
+    image = np.array(Image.open(io.BytesIO(file)).resize((150,150))).reshape(1,150,150,3)
+    logger.debug(f"Image shape is {image.shape}")
     return image
 
 
@@ -55,9 +56,10 @@ async def predict(file: UploadFile = File(...)):
 
     else:
         try:
-            image = read_imagefile(await file)
-            results["output"] = models["predictor"].predict(image)
-            
+            image = read_imagefile(await file.read())
+            pred = int(models["predictor"].predict(image).squeeze())
+            logger.debug(pred)
+            results["output"] = infer_dict[pred]
             logger.debug(results)
         except Exception as e:
             logger.error(f"{repr(e)}")
