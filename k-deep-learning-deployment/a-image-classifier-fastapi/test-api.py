@@ -42,5 +42,5 @@ async def main(img_path):
     return results
 
 if __name__ == "__main__":
-    res = asyncio.run(main("./image.jpg"))
+    res = asyncio.run(main("/home/heisenberg/Downloads/horse.jpg"))
     logger.debug(res)
