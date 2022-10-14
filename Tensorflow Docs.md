@@ -1202,6 +1202,12 @@ print(seed_text)
 
 ```
 
+<h2><b>012. Time Series Analysis with TF</b></h2>
+
+
+
+
+
 <h2><b>012. Multi Output Models with Tensorflow</b></h2>
 
 * We may have models with multiple types of Outputs.
